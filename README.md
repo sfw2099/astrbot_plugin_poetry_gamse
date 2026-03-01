@@ -1,14 +1,64 @@
-# astrbot-plugin-helloworld
+# 🌸 AstrBot Poetry Pro (衔字飞花令-模块化战术版)
 
-AstrBot 插件模板 / A template plugin for AstrBot plugin feature
+这是一个用于 **AstrBot** 的诗词插件。通过存在于本地的数据库，进行诗词查询和诗词游戏进行。
 
-> [!NOTE]
-> This repo is just a template of [AstrBot](https://github.com/AstrBotDevs/AstrBot) Plugin.
-> 
-> [AstrBot](https://github.com/AstrBotDevs/AstrBot) is an agentic assistant for both personal and group conversations. It can be deployed across dozens of mainstream instant messaging platforms, including QQ, Telegram, Feishu, DingTalk, Slack, LINE, Discord, Matrix, etc. In addition, it provides a reliable and extensible conversational AI infrastructure for individuals, developers, and teams. Whether you need a personal AI companion, an intelligent customer support agent, an automation assistant, or an enterprise knowledge base, AstrBot enables you to quickly build AI applications directly within your existing messaging workflows.
+---
 
-# Supports
+## 📚 项目介绍
 
-- [AstrBot Repo](https://github.com/AstrBotDevs/AstrBot)
-- [AstrBot Plugin Development Docs (Chinese)](https://docs.astrbot.app/dev/star/plugin-new.html)
-- [AstrBot Plugin Development Docs (English)](https://docs.astrbot.app/en/dev/star/plugin-new.html)
+本项目旨在打造一个硬核、公平且极具策略深度的群聊诗词竞技场。
+
+### 数据来源
+本项目的数据库由以下优质开源项目经过去重、清洗与合并而成：
+* [chinese-poetry/chinese-poetry](https://github.com/chinese-poetry/chinese-poetry.git)：最全的中华古诗词数据库。
+* [Werneror/Poetry](https://github.com/Werneror/Poetry.git)：精选诗词数据集。
+* [cdn0x12/poetic-mao](https://github.com/cdn0x12/poetic-mao.git)：近代毛泽东诗词全集。
+
+---
+
+## ⌨️ 指令解释
+
+| 指令 | 别名 | 功能说明 |
+| :--- | :--- | :--- |
+| `/飞花令` | - | 开启一场“衔字飞花令”竞技对局 |
+| `/飞花令规则` | - | 获取详细的计分与竞技规则说明 |
+| `/查询比赛情况` | - | 查看实时排行榜、当前轮次玩家及计分冷却字 |
+| `/飞花令记录` | - | 查询本局内已接龙成功的诗句，防止重复 |
+| `/查询诗句 <文字>` | - | 在百万级数据库中检索包含特定内容的诗句 |
+| `/查询诗词 <标题>` | - | 深度检索并展示指定标题诗词的完整内容 |
+| `/结束游戏` | `/结束飞花令` | 强制终止当前正在进行的竞技会话 |
+
+---
+
+## 📜 游戏规则解释
+
+### 核心机制
+1.  **动态加入**：玩家发送 `序号+加入`（如 `1+加入`）认领顺位，可随时中途加入排队。
+2.  **衔接判定**：从第 3 句起，每句诗必须包含前 2 句中各至少一个汉字。
+3.  **计分规则**：第 3 句起开始计分，每匹配到一个有效衔接字，积分按 $2^a$ 指数级翻倍。
+4.  **战术冷却**：上一名玩家用来拿分的字，本轮计分时将进入“冷却期”，使用这些字虽能接龙成功，但不产生积分。
+5.  **限时机制**：默认每轮限时 **90 秒**（可在配置面板修改），超时自动跳过或结束。
+
+### 竞技示例
+假设当前对局如下：
+
+* **1号位 (筑基)**：`春江花朝秋月夜`（不计分）
+* **2号位 (筑基)**：`春江潮水连海平`（不计分，高亮字：【春】【江】）
+* **3号位 (正式开始)**：玩家发送 `春江水暖鸭先知`。
+    * **判定**：匹配上二句的“春、江”，匹配上一句的“春、江、水”。
+    * **积分**：匹配 3 个有效字，获得 $2^3 = 8$ 分。
+    * **冷却锁定**：此时 **“春、江、水”** 进入 4 号位的冷却池。
+* **4号位**：玩家发送 `恰似一江春水向东流`。
+    * **判定**：包含了“春、江、水”，符合衔接规则。
+    * **积分**：因为“春、江、水”正处于 3 号位留下的冷却期，本轮计分为 **0 分**。
+    * **战术提示**：4 号位若想拿分，应寻找包含前两句中非冷却字（如“暖、鸭、先、知”）的诗句。
+
+---
+
+## 🛠️ 配置说明
+插件支持通过 AstrBot 管理面板进行可视化配置：
+* **timeout_seconds**：设置每轮作答的限时秒数，默认为 90。
+
+---
+
+© 2026 AstrBot Poetry Pro 模块化项目组
