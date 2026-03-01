@@ -1,37 +1,61 @@
-from astrbot.api.event import filter, AstrMessageEvent
-from astrbot.api.star import Context, Star, register, StarTools  # <-- 引入 StarTools
-from astrbot.api import logger, AstrBotConfig
 import os
-import shutil  
+import asyncio
+import aiohttp
+from astrbot.api.star import Context, Star, register, StarTools
+from astrbot.api import logger, AstrBotConfig
 
 from .database import PoetryDB
 from .game.flowing_petals import FlowingPetalsGame
 
-@register("astrbot_plugin_poetry_games", "ALin", "诗词游戏", "2.1.0")
+@register("astrbot_plugin_poetry_games", "ALin", "诗词游戏", "2.1.1")
 class PoetryPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
         
-        # 1. 获取当前代码所在目录（初始数据库存放处）
-        curr_dir = os.path.dirname(__file__)
-        original_db_path = os.path.join(curr_dir, 'poetry_data.db')
+        # 获取标准数据目录
+        self.plugin_data_dir = StarTools.get_data_dir("astrbot_plugin_poetry_games")
+        self.plugin_data_dir.mkdir(parents=True, exist_ok=True)
+        self.db_file = self.plugin_data_dir / 'poetry_data.db'
         
-        # 2. 获取 AstrBot 官方标准的持久化数据目录
-        plugin_data_dir = StarTools.get_data_dir("astrbot_plugin_poetry_games")
-        plugin_data_dir.mkdir(parents=True, exist_ok=True) # 确保目录存在
+        # 直接下载 .db 文件的链接
+        self.download_url = "https://github.com/sfw2099/astrbot_plugin_poetry_games/releases/latest/download/poetry_data.db"
         
-        self.db_file = str(plugin_data_dir / 'poetry_data.db')
+        self.db = None
+        self.active_games = {}
         
-        # 3. 如果标准目录下没有数据库（如首次安装），则从代码目录拷贝过去
-        if not os.path.exists(self.db_file):
-            if os.path.exists(original_db_path):
-                shutil.copyfile(original_db_path, self.db_file)
-                logger.info(f" 已将初始数据库复制到持久化目录: {self.db_file}")
-            else:
-                logger.error(" 严重错误：未找到初始的 poetry_data.db 文件！")
+        # 异步启动准备任务
+        asyncio.create_task(self.prepare_database())
+
+    async def prepare_database(self):
+        """检查并准备数据库：直接下载 .db 文件"""
+        if self.db_file.exists():
+            self.db = PoetryDB(str(self.db_file))
+            return
+
+        logger.info(f" 未发现数据库，准备下载: {self.db_file}")
         
-        self.db = PoetryDB(self.db_file)
-        self.config = config
+        try:
+            # 异步流式下载
+            async with aiohttp.ClientSession() as session:
+                async with session.get(self.download_url) as resp:
+                    if resp.status != 200:
+                        logger.error(f" 下载失败，状态码: {resp.status}。请检查 Release 中是否存在 poetry_data.db")
+                        return
+                    
+                    # 直接写入 .db 文件
+                    with open(self.db_file, "wb") as f:
+                        while True:
+                            chunk = await resp.content.read(8192)
+                            if not chunk:
+                                break
+                            f.write(chunk)
+            
+            # 实例化数据库对象
+            self.db = PoetryDB(str(self.db_file))
+            logger.info(" 数据库直接下载并加载成功！")
+            
+        except Exception as e:
+            logger.error(f" 自动下载数据库失败: {e}")
         
         # 游戏会话池：存储所有群组正在进行的游戏引擎实例
         self.active_games = {} 
