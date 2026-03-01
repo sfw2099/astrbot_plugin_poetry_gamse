@@ -7,7 +7,7 @@ from astrbot.api import logger, AstrBotConfig
 from .database import PoetryDB
 from .game.flowing_petals import FlowingPetalsGame
 
-@register("astrbot_plugin_poetry_games", "ALin", "诗词游戏", "2.1.1")
+@register("astrbot_plugin_poetry_games", "ALin", "诗词游戏", "2.1.2") # 提升版本号
 class PoetryPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
@@ -17,8 +17,8 @@ class PoetryPlugin(Star):
         self.plugin_data_dir.mkdir(parents=True, exist_ok=True)
         self.db_file = self.plugin_data_dir / 'poetry_data.db'
         
-        # 直接下载 .db 文件的链接
-        self.download_url = "https://github.com/sfw2099/astrbot_plugin_poetry_games/releases/latest/download/poetry_data.db"
+        # 使用你提供的含中文编码的正式 Release 链接
+        self.download_url = "https://github.com/sfw2099/astrbot_plugin_poetry_games/releases/download/%E8%AF%97%E8%AF%8D%E6%95%B0%E6%8D%AE/poetry_data.db"
         
         self.db = None
         self.active_games = {}
@@ -27,32 +27,34 @@ class PoetryPlugin(Star):
         asyncio.create_task(self.prepare_database())
 
     async def prepare_database(self):
-        """检查并准备数据库：直接下载 .db 文件"""
-        if self.db_file.exists():
-            self.db = PoetryDB(str(self.db_file))
-            return
+        """检查并准备数据库"""
+        # 如果文件已存在且大小不为 0 (防止之前生成的 0KB 空文件干扰)
+        if self.db_file.exists() and self.db_file.stat().st_size > 0:
+            try:
+                self.db = PoetryDB(str(self.db_file))
+                logger.info(" 数据库已就绪。")
+                return
+            except Exception:
+                logger.warning(" 检测到损坏的数据库文件，准备重新下载...")
+                os.remove(self.db_file)
 
-        logger.info(f" 未发现数据库，准备下载: {self.db_file}")
+        logger.info(f"📡 正在从 Release 下载数据库，请稍候...")
         
         try:
-            # 异步流式下载
             async with aiohttp.ClientSession() as session:
                 async with session.get(self.download_url) as resp:
                     if resp.status != 200:
-                        logger.error(f" 下载失败，状态码: {resp.status}。请检查 Release 中是否存在 poetry_data.db")
+                        logger.error(f" 下载失败，状态码: {resp.status}。请检查链接是否有效。")
                         return
                     
-                    # 直接写入 .db 文件
                     with open(self.db_file, "wb") as f:
                         while True:
                             chunk = await resp.content.read(8192)
-                            if not chunk:
-                                break
+                            if not chunk: break
                             f.write(chunk)
             
-            # 实例化数据库对象
             self.db = PoetryDB(str(self.db_file))
-            logger.info(" 数据库直接下载并加载成功！")
+            logger.info(" 数据库下载并加载成功！")
             
         except Exception as e:
             logger.error(f" 自动下载数据库失败: {e}")
