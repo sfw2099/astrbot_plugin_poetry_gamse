@@ -4,9 +4,9 @@ from astrbot.api import logger, AstrBotConfig
 import os
 
 from .database import PoetryDB
-from .games.flowing_petals import FlowingPetalsGame
+from .game.flowing_petals import FlowingPetalsGame
 
-@register("poetry_pro", "阿麟", "模块化诗词宇宙", "3.0.0")
+@register("astrbot_plugin_poetry_gamse", "ALin", "诗词游戏", "2.1.0")
 class PoetryPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
