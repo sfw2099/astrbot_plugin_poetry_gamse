@@ -1,24 +1,126 @@
-from astrbot.api.event import filter, AstrMessageEvent, MessageEventResult
+from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star, register
-from astrbot.api import logger
+from astrbot.api import logger, AstrBotConfig
+import os
 
-@register("helloworld", "YourName", "一个简单的 Hello World 插件", "1.0.0")
-class MyPlugin(Star):
-    def __init__(self, context: Context):
+from .database import PoetryDB
+from .games.flowing_petals import FlowingPetalsGame
+
+@register("poetry_pro", "阿麟", "模块化诗词宇宙", "3.0.0")
+class PoetryPlugin(Star):
+    def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
+        curr_dir = os.path.dirname(__file__)
+        
+        self.db_file = os.path.join(curr_dir, 'poetry_data.db')
+        if not os.path.exists(self.db_file):
+            self.db_file = os.path.join(os.getcwd(), 'data/plugins/astrbot_plugin_flowing_petals_linking_lines/poetry_data.db')
+        
+        self.db = PoetryDB(self.db_file)
+        self.config = config
+        
+        # 游戏会话池：存储所有群组正在进行的游戏引擎实例
+        self.active_games = {} 
 
-    async def initialize(self):
-        """可选择实现异步的插件初始化方法，当实例化该插件类之后会自动调用该方法。"""
+    def _on_game_ended(self, session_id):
+        """回调函数：当游戏结束时清空会话"""
+        if session_id in self.active_games:
+            del self.active_games[session_id]
 
-    # 注册指令的装饰器。指令名为 helloworld。注册成功后，发送 `/helloworld` 就会触发这个指令，并回复 `你好, {user_name}!`
-    @filter.command("helloworld")
-    async def helloworld(self, event: AstrMessageEvent):
-        """这是一个 hello world 指令""" # 这是 handler 的描述，将会被解析方便用户了解插件内容。建议填写。
-        user_name = event.get_sender_name()
-        message_str = event.message_str # 用户发的纯文本消息字符串
-        message_chain = event.get_messages() # 用户所发的消息的消息链 # from astrbot.api.message_components import *
-        logger.info(message_chain)
-        yield event.plain_result(f"Hello, {user_name}, 你发了 {message_str}!") # 发送一条纯文本消息
+    # ==========================================
+    # 基础信息检索 (通用指令)
+    # ==========================================
+    @filter.command("查询诗句")
+    async def find_sentence(self, event: AstrMessageEvent, sentence: str):
+        results = self.db.search_by_sentence(sentence)
+        if not results:
+            yield event.plain_result(f" 未找到包含“{sentence}”的内容。")
+            return
+        resp = [" 查询结果："]
+        for title, author, dynasty in results:
+            resp.append(f"• [{dynasty}] {author} —— 《{title}》")
+        yield event.plain_result("\n".join(resp))
 
-    async def terminate(self):
-        """可选择实现异步的插件销毁方法，当插件被卸载/停用时会调用。"""
+    @filter.command("查询诗词")
+    async def find_full_poem(self, event: AstrMessageEvent, title_kw: str):
+        results = self.db.get_poem_by_title(title_kw)
+        if not results:
+            yield event.plain_result(f" 未找到标题包含“{title_kw}”的诗词。")
+            return
+        resp = [" 检索结果：\n" + "="*20]
+        for i, (title, author, dynasty, content) in enumerate(results):
+            clean_content = content.replace('\r\n', '\n').strip()
+            resp.append(f"《{title}》\n作者：[{dynasty}] {author}\n\n{clean_content}")
+            if i < len(results) - 1: resp.append("-" * 15)
+        yield event.plain_result("\n".join(resp))
+
+    # ==========================================
+    # 游戏生命周期控制 (飞花令专属)
+    # ==========================================
+    @filter.command("飞花令")
+    async def start_flower(self, event: AstrMessageEvent):
+        session_id = event.get_group_id() or event.get_session_id()
+        if session_id in self.active_games:
+            yield event.plain_result(" 当前群聊已有游戏正在进行中。")
+            return
+        
+        # 实例化新的游戏引擎并注册到池中
+        game = FlowingPetalsGame(session_id, self.db, self.config, self._on_game_ended)
+        self.active_games[session_id] = game
+        
+        rules = (
+            f" 【衔字飞花令】开启！\n"
+            f"1. 报名：发送【序号+加入】参与。\n"
+            f"2. 衔接：第3句起需包含前2句各至少一字。\n"
+            f"3. 计分：上一轮拿分的字本轮进入“冷却”，不计分！\n"
+            f"4. 限时：{game.timeout_seconds}s。"
+        )
+        yield event.plain_result(rules)
+        game.start_timer(event)
+
+    @filter.command("查询比赛情况")
+    async def query_status(self, event: AstrMessageEvent):
+        session_id = event.get_group_id() or event.get_session_id()
+        if session_id not in self.active_games:
+            yield event.plain_result(" 当前未开启游戏。")
+            return
+        game = self.active_games[session_id]
+        if isinstance(game, FlowingPetalsGame):
+            yield event.plain_result(game.get_status_str())
+
+    @filter.command("飞花令记录")
+    async def query_history(self, event: AstrMessageEvent):
+        session_id = event.get_group_id() or event.get_session_id()
+        if session_id not in self.active_games:
+            yield event.plain_result(" 当前未开启游戏。")
+            return
+        game = self.active_games[session_id]
+        if isinstance(game, FlowingPetalsGame):
+            yield event.plain_result(game.get_history_str())
+
+    @filter.command("结束游戏", alias=["结束飞花令"])
+    async def end_game(self, event: AstrMessageEvent):
+        session_id = event.get_group_id() or event.get_session_id()
+        if session_id in self.active_games:
+            self.active_games[session_id].stop_game()
+            yield event.plain_result(" 游戏已强制结束。")
+
+    # ==========================================
+    # 全局监听分发中枢
+    # ==========================================
+    @filter.event_message_type(filter.EventMessageType.ALL)
+    async def handle_recv_msg(self, event: AstrMessageEvent):
+        msg_raw = event.message_str.strip()
+        # 忽略聊天括号和斜杠指令
+        if msg_raw.startswith(("(", "（")) and msg_raw.endswith((")", "）")): return
+        if not msg_raw or msg_raw.startswith(("/", "查询", "飞花令", "结束")): return
+
+        session_id = event.get_group_id() or event.get_session_id()
+        if session_id in self.active_games:
+            # 取出当前群组对应的游戏引擎，将信息直接委托给引擎处理
+            game = self.active_games[session_id]
+            user_id = event.get_sender_id()
+            user_name = event.get_sender_name()
+            
+            async for response in game.process_msg(event, msg_raw, user_id, user_name):
+                yield response

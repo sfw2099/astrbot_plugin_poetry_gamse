@@ -1,0 +1,8 @@
+{
+  "timeout_seconds": {
+    "description": "飞花令限时（秒）",
+    "type": "int",
+    "hint": "每轮飞花令的限时，默认 90 秒。超时未接龙将自动跳过或结束游戏。",
+    "default": 90
+  }
+}
