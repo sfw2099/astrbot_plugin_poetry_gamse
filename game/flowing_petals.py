@@ -53,10 +53,14 @@ class FlowingPetalsGame(BaseGame):
     async def _handle_timeout(self):
         if not self.latest_event: return
         event = self.latest_event
-        
+
         if not self.players:
+            # 无人加入时彻底销毁游戏实例
             self.stop_game()
-            await event.send(event.plain_result(f" {self.timeout_seconds}秒内无玩家加入，飞花令已自动结束。"))
+            try:
+                await event.send(event.plain_result(f" {self.timeout_seconds}秒内无玩家加入，飞花令已自动结束。"))
+            except Exception as e:
+                pass # 防止 event 失效导致报错
             return
             
         current_player = self.players[self.current_turn]['name']
