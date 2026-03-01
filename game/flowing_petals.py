@@ -13,7 +13,12 @@ class FlowingPetalsGame(BaseGame):
         self.banned_score_chars = set()
         self.current_turn = 0
         self.turn_counter = 0
-        self.timeout_seconds = self.config.get("timeout_seconds", 90)
+
+        try:
+            self.timeout_seconds = int(self.config.get("timeout_seconds", 90))
+        except (ValueError, TypeError):
+            self.timeout_seconds = 90  # 如果用户瞎填了字母，提供一个保底默认值
+            
         self.latest_event = None
 
     def get_status_str(self):
@@ -191,6 +196,7 @@ class FlowingPetalsGame(BaseGame):
         
         self.start_timer(event)
         event.stop_event()
+
 
 
 
