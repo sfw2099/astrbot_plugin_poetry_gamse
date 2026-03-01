@@ -9,7 +9,7 @@ from astrbot.api import logger, AstrBotConfig
 from .database import PoetryDB
 from .game.flowing_petals import FlowingPetalsGame
 
-@register("astrbot_plugin_poetry_games", "ALin", "诗词游戏", "2.1.2") # 提升版本号
+@register("astrbot_plugin_poetry_games", "ALin", "诗词游戏", "2.1.5") # 提升版本号
 class PoetryPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
@@ -20,7 +20,7 @@ class PoetryPlugin(Star):
         self.db_file = self.plugin_data_dir / 'poetry_data.db'
         
         # 使用你提供的含中文编码的正式 Release 链接
-        self.download_url = "https://github.com/sfw2099/astrbot_plugin_poetry_games/releases/download/%E8%AF%97%E8%AF%8D%E6%95%B0%E6%8D%AE/poetry_data.db"
+        self.download_url = "https://mirror.ghproxy.com/https://github.com/sfw2099/astrbot_plugin_poetry_games/releases/download/%E8%AF%97%E8%AF%8D%E6%95%B0%E6%8D%AE/poetry_data.db"
         
         self.db = None
         self.active_games = {}
