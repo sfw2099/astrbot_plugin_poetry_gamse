@@ -50,15 +50,13 @@ class PoetryPlugin(Star):
 
         # 检查 JSON 数据源
         data_path = self.data_dir
-        if not os.path.isdir(data_path):
-            logger.warning(f"⚠️ 数据目录不存在: {data_path}，尝试下载...")
-            logger.info("请将 poetry_output 中的 JSON 文件放入插件 data/ 目录")
+        if not os.path.isdir(data_path) or not any(f.endswith('.json') for f in os.listdir(data_path)):
+            logger.warning(f"⚠️ 数据目录为空或不存在: {data_path}")
+            logger.info("请从以下地址下载诗词数据到插件 data/ 目录:")
+            logger.info("  https://github.com/sfw2099/astrbot_plugin_poetry_games/releases/tag/data-v3.0.0")
             return
 
         json_files = [f for f in os.listdir(data_path) if f.endswith('.json')]
-        if not json_files:
-            logger.warning(f"⚠️ 数据目录为空: {data_path}")
-            return
 
         logger.info(f"📊 检测到 {len(json_files)} 个数据文件，开始构建数据库 (约需 2-5 分钟)...")
         try:
