@@ -8,7 +8,7 @@
   "data_download_url": {
     "description": "数据库下载地址",
     "type": "string",
-    "hint": "poetry_data.zip 下载地址。留空则不自动下载。首次使用建议手动上传 poetry_data.db 到数据目录",
-    "default": ""
+    "hint": "poetry_data.zip 下载地址。留空使用默认 GitHub Release 直链。国内服务器可将 github.com 替换为 gh.ddlc.top 加速",
+    "default": "https://github.com/sfw2099/astrbot_plugin_poetry_games/releases/download/data-v3.0.0/poetry_data.zip"
   }
 }

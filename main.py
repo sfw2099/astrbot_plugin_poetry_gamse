@@ -69,39 +69,58 @@ class PoetryPlugin(Star):
             except Exception as e:
                 logger.error(f"❌ 数据库构建失败: {e}")
 
-        # 备选：下载预构建的 poetry_data.zip
+        # 备选：下载预构建的 poetry_data.zip（支持镜像回退）
         if not self.db_release_url:
-            logger.info("📝 未配置下载地址，如需自动下载请在 WebUI 插件配置中设置 data_download_url")
+            logger.info("📝 未配置下载地址，跳过自动下载")
             return
+
+        download_urls = [self.db_release_url]
+        # 如果配置的是 GitHub 直链，添加镜像作为备用
+        if "github.com" in self.db_release_url:
+            mirror = self.db_release_url.replace("github.com", "gh.ddlc.top")
+            download_urls.append(mirror)
         logger.info(f"📡 未检测到本地数据，正在下载预构建数据库...")
         try:
             import aiohttp
             import zipfile
             import io
 
-            async with aiohttp.ClientSession() as session:
-                async with session.get(self.db_release_url, timeout=aiohttp.ClientTimeout(total=1800)) as resp:
-                    if resp.status != 200:
-                        logger.error(f"❌ 下载失败，状态码: {resp.status}")
-                        return
-                    total_size = int(resp.headers.get('Content-Length', 0))
-                    downloaded = 0
-                    chunks = []
-                    async for chunk in resp.content.iter_chunked(262144):
-                        chunks.append(chunk)
-                        downloaded += len(chunk)
-                        if total_size > 0 and downloaded % (20 * 1024 * 1024) < 262144:
-                            pct = int(downloaded / total_size * 100)
-                            mb = downloaded / (1024 * 1024)
-                            logger.info(f"  ⏳ {pct}% ({mb:.0f}MB / {total_size/(1024*1024):.0f}MB)")
+            last_error = None
+            for url in download_urls:
+                try:
+                    logger.info(f"  尝试: {url[:80]}...")
+                    async with aiohttp.ClientSession() as session:
+                        async with session.get(url, timeout=aiohttp.ClientTimeout(total=1800)) as resp:
+                            if resp.status != 200:
+                                last_error = f"HTTP {resp.status}"
+                                continue
+                            total_size = int(resp.headers.get('Content-Length', 0))
+                            downloaded = 0
+                            chunks = []
+                            async for chunk in resp.content.iter_chunked(262144):
+                                chunks.append(chunk)
+                                downloaded += len(chunk)
+                                if total_size > 0 and downloaded % (20 * 1024 * 1024) < 262144:
+                                    pct = int(downloaded / total_size * 100)
+                                    mb = downloaded / (1024 * 1024)
+                                    logger.info(f"  ⏳ {pct}% ({mb:.0f}MB / {total_size/(1024*1024):.0f}MB)")
+                            if total_size > 0 and downloaded < total_size * 0.9:
+                                last_error = f"下载不完整 ({downloaded}/{total_size} bytes)"
+                                continue
 
-            data = b''.join(chunks)
-            logger.info("📦 正在解压...")
-            with zipfile.ZipFile(io.BytesIO(data)) as zf:
-                zf.extractall(str(self.plugin_data_dir))
-            self.db = PoetryDB(str(self.db_file))
-            db_size_mb = os.path.getsize(str(self.db_file)) / (1024 * 1024)
-            logger.info(f"✅ 数据库下载并解压完成 ({db_size_mb:.0f} MB)")
+                    data = b''.join(chunks)
+                    logger.info("📦 正在解压...")
+                    with zipfile.ZipFile(io.BytesIO(data)) as zf:
+                        zf.extractall(str(self.plugin_data_dir))
+                    self.db = PoetryDB(str(self.db_file))
+                    db_size_mb = os.path.getsize(str(self.db_file)) / (1024 * 1024)
+                    logger.info(f"✅ 数据库下载并解压完成 ({db_size_mb:.0f} MB)")
+                    return
+                except Exception as e:
+                    last_error = str(e)
+                    continue
+
+            logger.error(f"❌ 所有下载源均失败: {last_error}")
         except Exception as e:
             logger.error(f"❌ 数据库下载失败: {e}")
             logger.info("手动上传: scp poetry_data.db 到 " + str(self.plugin_data_dir))
