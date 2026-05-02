@@ -4,5 +4,11 @@
     "type": "int",
     "hint": "每轮飞花令的限时，默认 90 秒。超时未接龙将自动跳过或结束游戏。",
     "default": 90
+  },
+  "data_download_url": {
+    "description": "数据库下载地址",
+    "type": "string",
+    "hint": "poetry_data.zip 的下载地址。可使用 GitHub 镜像加速，或设为本地路径跳过下载。\n示例镜像: https://gh.con.sh/https://github.com/sfw2099/astrbot_plugin_poetry_games/releases/download/data-v3.0.0/poetry_data.zip",
+    "default": "https://github.com/sfw2099/astrbot_plugin_poetry_games/releases/download/data-v3.0.0/poetry_data.zip"
   }
 }

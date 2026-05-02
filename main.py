@@ -37,8 +37,11 @@ class PoetryPlugin(Star):
 
         asyncio.create_task(self.prepare_database())
 
-        # 预构建数据库下载地址
-        self.db_release_url = "https://github.com/sfw2099/astrbot_plugin_poetry_games/releases/download/data-v3.0.0/poetry_data.zip"
+        # 预构建数据库下载地址（可通过配置自定义镜像加速）
+        self.db_release_url = self.config.get(
+            "data_download_url",
+            "https://github.com/sfw2099/astrbot_plugin_poetry_games/releases/download/data-v3.0.0/poetry_data.zip"
+        )
 
     async def prepare_database(self):
         """检查并准备数据库：已有 .db > 从 JSON 构建 > 下载预构建 .db"""
