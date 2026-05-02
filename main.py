@@ -70,8 +70,10 @@ class PoetryPlugin(Star):
                 logger.error(f"❌ 数据库构建失败: {e}")
 
         # 备选：下载预构建的 poetry_data.zip
-        logger.info(f"📡 未检测到本地数据，正在下载预构建数据库 (约 366MB)...")
-        logger.info(f"  (可通过安装 data-v3.0.0 Release 中的 JSON 到 data/ 目录跳过此步骤)")
+        if not self.db_release_url:
+            logger.info("📝 未配置下载地址，如需自动下载请在 WebUI 插件配置中设置 data_download_url")
+            return
+        logger.info(f"📡 未检测到本地数据，正在下载预构建数据库...")
         try:
             import aiohttp
             import zipfile
@@ -102,7 +104,7 @@ class PoetryPlugin(Star):
             logger.info(f"✅ 数据库下载并解压完成 ({db_size_mb:.0f} MB)")
         except Exception as e:
             logger.error(f"❌ 数据库下载失败: {e}")
-            logger.info("手动下载: 将 poetry_data.zip 中的 poetry_data.db 放入插件数据目录")
+            logger.info("手动上传: scp poetry_data.db 到 " + str(self.plugin_data_dir))
 
     # ==========================================
     # 基础信息检索 (通用指令)

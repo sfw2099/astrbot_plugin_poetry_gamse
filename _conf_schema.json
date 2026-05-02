@@ -8,7 +8,7 @@
   "data_download_url": {
     "description": "数据库下载地址",
     "type": "string",
-    "hint": "poetry_data.zip 的下载地址。可使用 GitHub 镜像加速，或设为本地路径跳过下载。\n示例镜像: https://gh.con.sh/https://github.com/sfw2099/astrbot_plugin_poetry_games/releases/download/data-v3.0.0/poetry_data.zip",
-    "default": "https://github.com/sfw2099/astrbot_plugin_poetry_games/releases/download/data-v3.0.0/poetry_data.zip"
+    "hint": "poetry_data.zip 下载地址。留空则不自动下载。首次使用建议手动上传 poetry_data.db 到数据目录",
+    "default": ""
   }
 }
