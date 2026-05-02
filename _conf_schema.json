@@ -5,10 +5,10 @@
     "hint": "每轮飞花令的限时，默认 90 秒。超时未接龙将自动跳过或结束游戏。",
     "default": 90
   },
-  "data_download_url": {
-    "description": "数据库下载地址",
-    "type": "string",
-    "hint": "poetry_data.zip 下载地址。留空使用默认 GitHub Release 直链。国内服务器可将 github.com 替换为 gh.ddlc.top 加速",
-    "default": "https://github.com/sfw2099/astrbot_plugin_poetry_games/releases/download/data-v3.0.0/poetry_data.zip"
+  "proxy_urls": {
+    "description": "数据库下载代理列表",
+    "type": "text",
+    "hint": "poetry_data.zip 的下载地址列表，每行一个。启动时自动探测延迟选择最快源。留空使用内置列表。\n内置: github.com 直链 + gh.ddlc.top + ghproxy.net + gh.jiasu.in + gh.con.sh",
+    "default": "https://github.com/sfw2099/astrbot_plugin_poetry_games/releases/download/data-v3.0.0/poetry_data.zip\nhttps://gh.ddlc.top/https://github.com/sfw2099/astrbot_plugin_poetry_games/releases/download/data-v3.0.0/poetry_data.zip\nhttps://ghproxy.net/https://github.com/sfw2099/astrbot_plugin_poetry_games/releases/download/data-v3.0.0/poetry_data.zip\nhttps://gh.jiasu.in/https://github.com/sfw2099/astrbot_plugin_poetry_games/releases/download/data-v3.0.0/poetry_data.zip\nhttps://gh.con.sh/https://github.com/sfw2099/astrbot_plugin_poetry_games/releases/download/data-v3.0.0/poetry_data.zip"
   }
 }
