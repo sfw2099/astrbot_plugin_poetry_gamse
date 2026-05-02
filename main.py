@@ -78,7 +78,7 @@ class PoetryPlugin(Star):
             return
         results = self.db.search_by_sentence(sentence)
         if not results:
-            yield event.plain_result(f"未找到包含"{sentence}"的内容。")
+            yield event.plain_result(f"未找到包含「{sentence}」的内容。")
             return
         resp = ["查询结果："]
         for title, author, dynasty in results:
@@ -92,7 +92,7 @@ class PoetryPlugin(Star):
             return
         results = self.db.get_poem_by_title(title_kw)
         if not results:
-            yield event.plain_result(f"未找到标题包含"{title_kw}"的诗词。")
+            yield event.plain_result(f"未找到标题包含「{title_kw}」的诗词。")
             return
         resp = ["检索结果：\n" + "="*20]
         for i, (title, author, dynasty, content, version) in enumerate(results):
