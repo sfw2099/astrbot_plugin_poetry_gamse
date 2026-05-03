@@ -113,9 +113,11 @@ class PoetryPlugin(Star):
         # ---- download ----
         try:
             if best_dl_url == "GITEE":
-                await self._download_gitee(event)
+                async for msg in self._download_gitee(event):
+                    yield msg
             else:
-                await self._download_zip(event, best_dl_url)
+                async for msg in self._download_zip(event, best_dl_url):
+                    yield msg
 
             self.db = PoetryDB(str(self.db_file))
             db_size_mb = os.path.getsize(str(self.db_file)) / (1024 * 1024)
