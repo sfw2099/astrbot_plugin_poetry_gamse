@@ -127,10 +127,9 @@ class PoetryPlugin(Star):
             yield event.plain_result(f"❌ 下载失败: {e}\n请手动下载: {GITHUB_ZIP}")
 
     async def _download_gitee(self, event: AstrMessageEvent):
-        """下载 Gitee 4 个分片，合并解压"""
+        """下载 Gitee 4 个分片，流式写入磁盘后解压（节省内存）"""
         import zipfile
-        import io
-        all_data = bytearray()
+        tmp_zip = str(self.plugin_data_dir / '_poetry_data_tmp.zip')
         connector = aiohttp.TCPConnector(ssl=False)
         async with aiohttp.ClientSession(connector=connector) as session:
             for i in range(1, GITEE_PARTS + 1):
@@ -140,20 +139,22 @@ class PoetryPlugin(Star):
                 async with session.get(part_url, timeout=aiohttp.ClientTimeout(total=600)) as resp:
                     if resp.status != 200:
                         raise Exception(f"分片 {i} HTTP {resp.status}")
-                    chunk = await resp.read()
-                    all_data.extend(chunk)
-                mb = len(chunk) / (1024 * 1024)
+                    with open(tmp_zip, 'ab' if i > 1 else 'wb') as f:
+                        async for chunk in resp.content.iter_chunked(65536):
+                            f.write(chunk)
+                mb = os.path.getsize(tmp_zip) / (1024 * 1024)
                 elapsed = time.monotonic() - t0
-                yield event.plain_result(f"  [{i}/{GITEE_PARTS}] ✓ {mb:.0f}MB ({elapsed:.0f}s)")
+                yield event.plain_result(f"  [{i}/{GITEE_PARTS}] ✓ {mb:.0f}MB 累计 ({elapsed:.0f}s)")
 
-        yield event.plain_result("📦 正在合并解压...")
-        with zipfile.ZipFile(io.BytesIO(bytes(all_data))) as zf:
+        yield event.plain_result("📦 正在解压...")
+        with zipfile.ZipFile(tmp_zip) as zf:
             zf.extractall(str(self.plugin_data_dir))
+        os.remove(tmp_zip)
 
     async def _download_zip(self, event: AstrMessageEvent, url):
-        """下载单个 zip 文件，带进度"""
+        """下载单个 zip 文件，流式写入磁盘后解压（节省内存）"""
         import zipfile
-        import io
+        tmp_zip = str(self.plugin_data_dir / '_poetry_data_tmp.zip')
         connector = aiohttp.TCPConnector(ssl=False)
         async with aiohttp.ClientSession(connector=connector) as session:
             async with session.get(url, timeout=aiohttp.ClientTimeout(total=1800)) as resp:
@@ -161,25 +162,26 @@ class PoetryPlugin(Star):
                     raise Exception(f"HTTP {resp.status}")
                 total_size = int(resp.headers.get('Content-Length', 0))
                 downloaded = 0
-                chunks = []
                 last_report_time = time.monotonic()
 
-                async for chunk in resp.content.iter_chunked(262144):
-                    chunks.append(chunk)
-                    downloaded += len(chunk)
-                    if total_size > 0 and (time.monotonic() - last_report_time) >= 5:
-                        pct = int(downloaded / total_size * 100)
-                        yield event.plain_result(
-                            f"  ⏳ {pct}% ({downloaded/(1024*1024):.0f}/{total_size/(1024*1024):.0f} MB)")
-                        last_report_time = time.monotonic()
+                with open(tmp_zip, 'wb') as f:
+                    async for chunk in resp.content.iter_chunked(65536):
+                        f.write(chunk)
+                        downloaded += len(chunk)
+                        if total_size > 0 and (time.monotonic() - last_report_time) >= 5:
+                            pct = int(downloaded / total_size * 100)
+                            yield event.plain_result(
+                                f"  ⏳ {pct}% ({downloaded/(1024*1024):.0f}/{total_size/(1024*1024):.0f} MB)")
+                            last_report_time = time.monotonic()
 
                 if total_size > 0 and downloaded < total_size * 0.9:
+                    os.remove(tmp_zip)
                     raise Exception("下载不完整")
 
         yield event.plain_result("📦 正在解压...")
-        data = b''.join(chunks)
-        with zipfile.ZipFile(io.BytesIO(data)) as zf:
+        with zipfile.ZipFile(tmp_zip) as zf:
             zf.extractall(str(self.plugin_data_dir))
+        os.remove(tmp_zip)
 
     # ==========================================
     # 🌟 核心修复：多存档列表获取助手
