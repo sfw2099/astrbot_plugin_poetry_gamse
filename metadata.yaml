@@ -1,6 +1,6 @@
-name: astrbot_plugin_poetry_games
-display_name: 诗词游戏
-desc: AstrBot poetry game plugin - Feihualing/Crossword/Snake/AI Bot
+﻿name: astrbot_plugin_poetry_games
+display_name: poetry-game
+desc: AstrBot poetry game plugin
 version: v3.2.1
 author: ALin
 repo: https://github.com/sfw2099/astrbot_plugin_poetry_games

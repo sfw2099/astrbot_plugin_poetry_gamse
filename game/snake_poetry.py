@@ -553,8 +553,11 @@ class PoetrySnakeEngine(BaseGameEngine):
         msg += f"{'-' * 15}\n下一位：[{self.state['players'][self.state['current_turn']]['name']}]"
         return {"status": "success", "msg": msg, "image": self.render_image()}
 
+    def add_bot(self):
+        return {"status": "error", "msg": "🐍 蛇形飞花令暂不支持 Bot 参与。"}
+
     def bot_play(self):
-        """蛇形飞花令 Bot：找含食物字符的诗句"""
+        """蛇形飞花令 Bot（禁用中）"""
         import sqlite3
         custom = self.state["custom_data"]
         foods = custom.get("foods", [])
