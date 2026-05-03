@@ -3,6 +3,10 @@ import json
 import time
 import sqlite3
 import re
+import random
+
+BOT_ID = "__bot_poetry__"
+BOT_NAME = "🤖诗词AI"
 
 class BaseGameEngine:
     def __init__(self, session_id, db_source, save_dir, timeout_seconds=90, save_filename=None):
@@ -98,6 +102,38 @@ class BaseGameEngine:
             msg += f"\n👉 当前轮到：[{players[self.state['current_turn']]['name']}]"
             
         return {"status": "success", "msg": msg}
+
+    def add_bot(self):
+        players = self.state["players"]
+        if any(p['id'] == BOT_ID for p in players):
+            return {"status": "ignore", "msg": "Bot 已在游戏中。"}
+        if len(players) == 0:
+            return {"status": "error", "msg": "请等待至少一位人类玩家加入后，Bot 才能加入！"}
+        players.append({"id": BOT_ID, "name": BOT_NAME, "score": 0})
+        self.update_activity()
+        self.save_state()
+        return {"status": "success", "msg": f"🤖 Bot|[BOT_NAME]|加入游戏！\n排在第 {len(players)} 号位，轮到时会自动行动。"}
+
+    def remove_bot(self):
+        players = self.state["players"]
+        for i, p in enumerate(players):
+            if p['id'] == BOT_ID:
+                quitter = players.pop(i)
+                self.state.setdefault("quit_players", []).append(quitter)
+                if self.state["current_turn"] >= len(players) and players:
+                    self.state["current_turn"] %= len(players)
+                self.update_activity()
+                self.save_state()
+                return {"status": "success", "msg": "🤖 Bot 已退出。"}
+        return {"status": "ignore", "msg": "Bot 未在游戏中。"}
+
+    def is_bot_turn(self):
+        players = self.state["players"]
+        if not players: return False
+        return players[self.state["current_turn"]]["id"] == BOT_ID
+
+    def bot_play(self):
+        raise NotImplementedError
 
     def process_quit(self, user_id, user_name):
         """通用的退出逻辑"""

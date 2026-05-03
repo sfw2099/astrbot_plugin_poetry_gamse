@@ -320,6 +320,37 @@ class PoetryPlugin(Star):
             yield event.image_result(engine.render_image())
 
     # ==========================================
+    # 🤖 Bot 管理指令
+    # ==========================================
+    @filter.command("bot加入")
+    async def add_bot(self, event: AstrMessageEvent):
+        session_id = str(event.get_group_id() or event.get_session_id())
+        engine = self.active_games.get(session_id)
+        if not engine:
+            yield event.plain_result("当前没有游戏，请先【/衔字飞花令】或【/纵横飞花令】建局。")
+            return
+        result = engine.add_bot()
+        if result["status"] == "ignore":
+            yield event.plain_result("Bot 已在游戏中！")
+        elif result["status"] == "error":
+            yield event.plain_result(result["msg"])
+        else:
+            yield event.plain_result(result["msg"])
+
+    @filter.command("bot退出")
+    async def remove_bot(self, event: AstrMessageEvent):
+        session_id = str(event.get_group_id() or event.get_session_id())
+        engine = self.active_games.get(session_id)
+        if not engine:
+            yield event.plain_result("当前没有进行中的游戏。")
+            return
+        result = engine.remove_bot()
+        if result["status"] == "ignore":
+            yield event.plain_result("Bot 未在游戏中。")
+        else:
+            yield event.plain_result(result["msg"])
+
+    # ==========================================
     # 多存档管理指令
     # ==========================================
     @filter.command("恢复游戏")
@@ -502,6 +533,25 @@ class PoetryPlugin(Star):
                 await asyncio.sleep(2)
                 if session_id not in self.active_games: break
                 engine = self.active_games[session_id]
+
+                # 🤖 Bot turn handling
+                if engine.is_bot_turn():
+                    import random as _random
+                    await asyncio.sleep(_random.uniform(2, 4))
+                    if session_id not in self.active_games: break
+                    try:
+                        bot_resp = engine.bot_play()
+                        if bot_resp and bot_resp.get("msg"):
+                            await self.context.send_message(msg_origin, MessageChain([Plain(bot_resp["msg"])]))
+                        if bot_resp and "image" in bot_resp:
+                            await self.context.send_message(msg_origin, MessageChain([Image.fromFileSystem(bot_resp["image"])]))
+                    except Exception as e:
+                        logger.error(f"🤖 Bot 操作失败: {e}")
+                        engine.next_turn()
+                        engine.update_activity()
+                        engine.save_state()
+                    continue
+
                 is_timeout, action, msg = engine.check_active_timeout()
                 if is_timeout:
                     chain = [Plain(msg)]
@@ -525,7 +575,7 @@ class PoetryPlugin(Star):
     async def handle_recv_msg(self, event: AstrMessageEvent):
         msg_raw = event.message_str.strip()
         if msg_raw.startswith(("(", "（")) and msg_raw.endswith((")", "）")): return
-        if not msg_raw or msg_raw.startswith(("/", "查询", "生成战报", "恢复", "结束", "纵横", "衔字", "蛇形", "删除", "安装")): return
+        if not msg_raw or msg_raw.startswith(("/", "查询", "生成战报", "恢复", "结束", "纵横", "衔字", "蛇形", "删除", "安装", "bot")): return
 
         session_id = str(event.get_group_id() or event.get_session_id())
         if session_id not in self.active_games: return

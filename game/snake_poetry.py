@@ -4,9 +4,9 @@ import os
 import sqlite3
 from PIL import Image, ImageDraw, ImageFont
 try:
-    from .base_game import BaseGameEngine
+    from .base_game import BaseGameEngine, BOT_ID, BOT_NAME
 except ImportError:
-    from base_game import BaseGameEngine
+    from base_game import BaseGameEngine, BOT_ID, BOT_NAME
 
 class PoetrySnakeEngine(BaseGameEngine):
     def __init__(self, session_id, db_source, save_dir, width=40, height=40, timeout_seconds=90, save_filename=None):
@@ -552,6 +552,48 @@ class PoetrySnakeEngine(BaseGameEngine):
             
         msg += f"{'-' * 15}\n下一位：[{self.state['players'][self.state['current_turn']]['name']}]"
         return {"status": "success", "msg": msg, "image": self.render_image()}
+
+    def bot_play(self):
+        """蛇形飞花令 Bot：找含食物字符的诗句"""
+        import sqlite3
+        custom = self.state["custom_data"]
+        foods = custom.get("foods", [])
+        if not foods:
+            self.next_turn(); self.save_state()
+            return {"msg": "🤖 [诗词AI] 棋盘无食物，弃权。"}
+
+        db_path = self.db_source if isinstance(self.db_source, str) else getattr(self.db_source, 'db_path', None)
+        if not db_path:
+            self.next_turn(); self.save_state()
+            return {"msg": "🤖 [诗词AI] 数据库不可用，弃权。"}
+
+        food_chars = list(set(f['char'] for f in foods))[:5]
+        candidates = []
+        with sqlite3.connect(db_path) as conn:
+            for ch in food_chars:
+                cursor = conn.cursor()
+                cursor.execute("SELECT content FROM poems WHERE content LIKE ? LIMIT 10", (f'%{ch}%',))
+                for row in cursor.fetchall():
+                    for sent in re.split(r'[，。！？\n\r\s、；：]+', row[0]):
+                        pure = re.sub(r'[^\u4e00-\u9fa5]', '', sent)
+                        if len(pure) < 3: continue
+                        if not self._check_db(pure): continue
+                        for f in foods:
+                            if f['char'] in pure:
+                                for idx, c in enumerate(pure):
+                                    if c == f['char']:
+                                        for d in ['H', 'V']:
+                                            sx = f['x'] - (idx if d == 'H' else 0)
+                                            sy = f['y'] - (0 if d == 'H' else idx)
+                                            grid, ci = self._build_rich_grid()
+                                            if self._is_valid(sx, sy, d, pure, BOT_ID, grid, ci):
+                                                candidates.append(pure)
+        if candidates:
+            best = random.choice(candidates)
+            return self.step("play", BOT_ID, BOT_NAME, best)
+
+        self.next_turn(); self.save_state()
+        return {"msg": "🤖 [诗词AI] 找不到可用的诗句，弃权。"}
 
     def step(self, action_type, user_id, user_name, payload=""):
         self.update_activity()

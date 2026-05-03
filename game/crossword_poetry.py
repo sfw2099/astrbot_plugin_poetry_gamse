@@ -4,9 +4,9 @@ import os
 import sqlite3
 from PIL import Image, ImageDraw, ImageFont
 try:
-    from .base_game import BaseGameEngine
+    from .base_game import BaseGameEngine, BOT_ID, BOT_NAME
 except ImportError:
-    from base_game import BaseGameEngine
+    from base_game import BaseGameEngine, BOT_ID, BOT_NAME
 
 class PoetryCrosswordEngine(BaseGameEngine):
     def __init__(self, session_id, db_source, save_dir, width=24, height=24, timeout_seconds=90, save_filename=None):
@@ -267,6 +267,54 @@ class PoetryCrosswordEngine(BaseGameEngine):
             f"👉 下一位：[{next_name}]"
         )
         return {"status": "success", "msg": msg, "image": self.render_image()}
+
+    def bot_play(self):
+        """纵横飞花令 Bot：找含棋盘字符的可用诗句"""
+        import sqlite3
+        grid = self.state["custom_data"]["grid"]
+        db_path = self.db_source if isinstance(self.db_source, str) else getattr(self.db_source, 'db_path', None)
+        if not db_path:
+            self.next_turn(); self.save_state()
+            return {"msg": "🤖 [诗词AI] 数据库不可用，弃权。"}
+
+        grid_chars = set()
+        for y in range(self.GRID_SIZE):
+            for x in range(self.GRID_SIZE):
+                c = grid[y][x]
+                if c: grid_chars.add(c['char'])
+
+        if not grid_chars:
+            self.next_turn(); self.save_state()
+            return {"msg": "🤖 [诗词AI] 棋盘无可用字符，弃权。"}
+
+        candidates = []
+        with sqlite3.connect(db_path) as conn:
+            for ch in list(grid_chars)[:8]:
+                cursor = conn.cursor()
+                cursor.execute("SELECT content FROM poems WHERE content LIKE ? LIMIT 15", (f'%{ch}%',))
+                for row in cursor.fetchall():
+                    for sent in re.split(r'[，。！？\n\r\s、；：]+', row[0]):
+                        pure = re.sub(r'[^\u4e00-\u9fa5]', '', sent)
+                        if len(pure) < 3: continue
+                        for y in range(self.GRID_SIZE):
+                            for x in range(self.GRID_SIZE):
+                                cell = grid[y][x]
+                                if not cell: continue
+                                if cell['char'] in pure:
+                                    for idx, c in enumerate(pure):
+                                        if c == cell['char']:
+                                            if self.check_collision(pure, x-idx, y, 'H'):
+                                                candidates.append((pure, x-idx, y, 'H'))
+                                            if self.check_collision(pure, x, y-idx, 'V'):
+                                                candidates.append((pure, x, y-idx, 'V'))
+
+        if candidates:
+            verse, sx, sy, d = random.choice(candidates)
+            self._execute_placement(verse, sx, sy, d, BOT_ID, BOT_NAME)
+            return self._finalize_success_turn(BOT_NAME, verse)
+
+        self.next_turn(); self.save_state()
+        return {"msg": "🤖 [诗词AI] 找不到合适的落子，弃权。"}
 
     def step(self, action_type, user_id, user_name, payload=""):
         self.update_activity()

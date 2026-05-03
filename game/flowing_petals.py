@@ -1,22 +1,99 @@
 import re
+import random
 try:
-    # 当作为 AstrBot 插件或模块运行时，使用相对导入
-    from .base_game import BaseGameEngine
+    from .base_game import BaseGameEngine, BOT_ID, BOT_NAME
 except ImportError:
-    # 当在本地作为单个脚本直接运行时，使用同级绝对导入
-    from base_game import BaseGameEngine
+    from base_game import BaseGameEngine, BOT_ID, BOT_NAME
 
 class FlowingPetalsEngine(BaseGameEngine):
-    # 🌟 修复点：增加 timeout_seconds 参数接收
     def __init__(self, session_id, db_source, save_dir, timeout_seconds=60, save_filename=None):
-        # 🌟 透传给父类
         super().__init__(session_id, db_source, save_dir, timeout_seconds, save_filename)
-        
         if not self.state.get("custom_data"):
             self.state["custom_data"] = {
                 "used_verses_keys": [],
                 "banned_score_chars": []
             }
+
+    def bot_play(self):
+        """衔字飞花令 Bot：从DB搜索含前两句字符的可用诗句"""
+        import sqlite3
+        custom = self.state["custom_data"]
+        history = self.state["history"]
+
+        if not self.db_source:
+            self.next_turn()
+            self.save_state()
+            return {"msg": "🤖 [诗词AI] 数据库不可用，弃权。"}
+
+        if len(history) < 1:
+            # 首句：随机选一句5或7言诗
+            verse = self._bot_random_opening()
+            if verse:
+                return self.step("play", BOT_ID, BOT_NAME, verse)
+            self.next_turn()
+            self.save_state()
+            return {"msg": "🤖 [诗词AI] 未能找到合适的开局，弃权。"}
+
+        # 提取前两句纯汉字
+        h_clean = []
+        for h_item in history[-2:]:
+            h_clean.append(re.sub(r'[^\u4e00-\u9fa5]', '', h_item.split(' (')[0]))
+
+        target_chars = set()
+        for hc in h_clean:
+            target_chars.update(list(hc))
+
+        banned = set(custom.get("banned_score_chars", []))
+        used_keys = set(custom.get("used_verses_keys", []))
+
+        db_path = self.db_source if isinstance(self.db_source, str) else getattr(self.db_source, 'db_path', None)
+        if not db_path:
+            self.next_turn(); self.save_state()
+            return {"msg": "🤖 [诗词AI] 数据库不可用，弃权。"}
+
+        candidates = []
+        with sqlite3.connect(db_path) as conn:
+            for c in list(target_chars)[:10]:  # 只试前10个字符避免太慢
+                cursor = conn.cursor()
+                cursor.execute("SELECT title, author, content FROM poems WHERE content LIKE ? LIMIT 20", (f'%{c}%',))
+                for title, author, content in cursor.fetchall():
+                    for sent in re.split(r'[，。！？\n\r\s、；：]+', content):
+                        pure = re.sub(r'[^\u4e00-\u9fa5]', '', sent)
+                        if len(pure) < 3:
+                            continue
+                        key = f"{title}_{author}_{sent}"
+                        if key in used_keys:
+                            continue
+                        # Rule check
+                        if len(history) >= 2:
+                            if not (set(pure) & set(h_clean[-2]) and set(pure) & set(h_clean[-1])):
+                                continue
+                        # Score: more matches, fewer banned chars
+                        match_cnt = len(set(pure) & target_chars)
+                        ban_cnt = len(set(pure) & banned)
+                        candidates.append((sent, match_cnt - ban_cnt))
+
+        if candidates:
+            candidates.sort(key=lambda x: x[1], reverse=True)
+            best = random.choice(candidates[:max(3, len(candidates)//10)])
+            return self.step("play", BOT_ID, BOT_NAME, best[0])
+
+        self.next_turn(); self.save_state()
+        return {"msg": "🤖 [诗词AI] 智商不足，弃权。"}
+
+    def _bot_random_opening(self):
+        import sqlite3
+        db_path = self.db_source if isinstance(self.db_source, str) else getattr(self.db_source, 'db_path', None)
+        if not db_path: return None
+        with sqlite3.connect(db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT content FROM poems WHERE length(content) > 10 ORDER BY RANDOM() LIMIT 50")
+            for row in cursor.fetchall():
+                for sent in re.split(r'[，。！？\n\r\s、；：]+', row[0]):
+                    pure = re.sub(r'[^\u4e00-\u9fa5]', '', sent)
+                    if len(pure) in [5, 7] and len(pure) >= 3:
+                        return sent
+        return None
 
     def get_status_str(self):
         """获取当前局势文本"""
