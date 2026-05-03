@@ -272,14 +272,16 @@ class PoetryCrosswordEngine(BaseGameEngine):
         """纵横飞花令 Bot：找含棋盘字符的可用诗句"""
         import sqlite3
         grid = self.state["custom_data"]["grid"]
+        gs_y = len(grid)
+        gs_x = len(grid[0]) if gs_y > 0 else 0
         db_path = self.db_source if isinstance(self.db_source, str) else getattr(self.db_source, 'db_path', None)
         if not db_path:
             self.next_turn(); self.save_state()
             return {"msg": "🤖 [诗词AI] 数据库不可用，弃权。"}
 
         grid_chars = set()
-        for y in range(self.GRID_SIZE):
-            for x in range(self.GRID_SIZE):
+        for y in range(gs_y):
+            for x in range(gs_x):
                 c = grid[y][x]
                 if c: grid_chars.add(c['char'])
 
@@ -296,8 +298,8 @@ class PoetryCrosswordEngine(BaseGameEngine):
                     for sent in re.split(r'[，。！？\n\r\s、；：]+', row[0]):
                         pure = re.sub(r'[^\u4e00-\u9fa5]', '', sent)
                         if len(pure) < 3: continue
-                        for y in range(self.GRID_SIZE):
-                            for x in range(self.GRID_SIZE):
+                        for y in range(gs_y):
+                            for x in range(gs_x):
                                 cell = grid[y][x]
                                 if not cell: continue
                                 if cell['char'] in pure:

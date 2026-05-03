@@ -112,7 +112,7 @@ class BaseGameEngine:
         players.append({"id": BOT_ID, "name": BOT_NAME, "score": 0})
         self.update_activity()
         self.save_state()
-        return {"status": "success", "msg": f"🤖 Bot|[BOT_NAME]|加入游戏！\n排在第 {len(players)} 号位，轮到时会自动行动。"}
+        return {"status": "success", "msg": f"🤖 {BOT_NAME} 加入游戏！\n排在第 {len(players)} 号位，轮到时会自动行动。"}
 
     def remove_bot(self):
         players = self.state["players"]
