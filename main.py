@@ -12,6 +12,7 @@ from astrbot.api.all import Plain, Image, MessageChain
 from .database import PoetryDB
 from .game.flowing_petals import FlowingPetalsEngine
 from .game.crossword_poetry import PoetryCrosswordEngine
+from .game.snake_poetry import PoetrySnakeEngine
 
 GITEE_BASE = "https://gitee.com/alin1031/poetry-data/releases/download/v1.0.0/poetry_data.zip"
 GITEE_PROBE = GITEE_BASE + ".part01"  # 探测分片而非基文件（基文件不存在）
@@ -49,6 +50,7 @@ class PoetryPlugin(Star):
         self.timeout_tasks = {}
         self.flowing_timeout = self.config.get("flowing_timeout", 90)
         self.crossword_timeout = self.config.get("crossword_timeout", 90)
+        self.snake_timeout = self.config.get("snake_timeout", 120)
 
     def _ensure_db(self):
         """惰性加载数据库"""
@@ -297,6 +299,26 @@ class PoetryPlugin(Star):
         if hasattr(engine, "render_image"):
             yield event.image_result(engine.render_image())
 
+    @filter.command("蛇形飞花令")
+    async def start_snake(self, event: AstrMessageEvent, width: int = 40, height: int = 40):
+        if not self._ensure_db():
+            yield event.plain_result("⏳ 数据库未安装，请发送 /安装数据库")
+            return
+        if not (20 <= width <= 60) or not (20 <= height <= 60):
+            yield event.plain_result("📐 棋盘宽和高必须在 20 到 60 之间！")
+            return
+        session_id = str(event.get_group_id() or event.get_session_id())
+        if session_id in self.active_games:
+            yield event.plain_result("当前群聊已有游戏正在进行！请先【结束游戏】")
+            return
+        engine = PoetrySnakeEngine(session_id, self.db, str(self.saves_dir), width=width, height=height, timeout_seconds=self.snake_timeout)
+        self.active_games[session_id] = engine
+        if session_id in self.timeout_tasks: self.timeout_tasks[session_id].cancel()
+        self.timeout_tasks[session_id] = asyncio.create_task(self._active_timeout_monitor(session_id, event.unified_msg_origin))
+        yield event.plain_result(f"🐍 【蛇形飞花令】已建立新对局！({width}x{height}棋盘，限时{self.snake_timeout}秒)\n请发送【加入】参与。")
+        if hasattr(engine, "render_image"):
+            yield event.image_result(engine.render_image())
+
     # ==========================================
     # 多存档管理指令
     # ==========================================
@@ -313,7 +335,7 @@ class PoetryPlugin(Star):
         if not arg or not arg.isdigit():
             msg = [f"📂 发现 {len(saves)} 个存档，请发送 /恢复游戏 [序号] 来选择：", "-"*15]
             for i, s in enumerate(saves, 1):
-                gtype = "纵横" if "Crossword" in s["type"] else "衔字"
+                gtype = "纵横" if "Crossword" in s["type"] else ("蛇形" if "Snake" in s["type"] else "衔字")
                 msg.append(f"[{i}] {gtype}飞花令 | 建于: {s['start_time']} | 进度: {s['turn_count']}回合")
             yield event.plain_result("\n".join(msg))
             return
@@ -325,6 +347,8 @@ class PoetryPlugin(Star):
         filename = target_save["filename"]
         if "Crossword" in target_save["type"]:
             engine = PoetryCrosswordEngine(session_id, self.db, str(self.saves_dir), save_filename=filename)
+        elif "Snake" in target_save["type"]:
+            engine = PoetrySnakeEngine(session_id, self.db, str(self.saves_dir), save_filename=filename)
         else:
             engine = FlowingPetalsEngine(session_id, self.db, str(self.saves_dir), save_filename=filename)
         try:
@@ -352,7 +376,7 @@ class PoetryPlugin(Star):
         if not arg or not arg.isdigit():
             msg = [f"🗑 发现 {len(saves)} 个存档，请发送 /删除存档 [序号] 来永久删除：", "-"*15]
             for i, s in enumerate(saves, 1):
-                gtype = "纵横" if "Crossword" in s["type"] else "衔字"
+                gtype = "纵横" if "Crossword" in s["type"] else ("蛇形" if "Snake" in s["type"] else "衔字")
                 msg.append(f"[{i}] {gtype}飞花令 | 建于: {s['start_time']} | 进度: {s['turn_count']}回合")
             yield event.plain_result("\n".join(msg))
             return
@@ -402,8 +426,9 @@ class PoetryPlugin(Star):
                 "📋 目录列表：\n"
                 "1. /飞花令帮助 衔字规则  (衔字飞花令玩法说明)\n"
                 "2. /飞花令帮助 纵横规则  (纵横飞花令玩法说明)\n"
-                "3. /飞花令帮助 基础查询  (查诗词/查诗句指令)\n"
-                "4. /飞花令帮助 游戏管理  (建局/读档/跳过等指令)\n"
+                "3. /飞花令帮助 蛇形规则  (蛇形飞花令玩法说明)\n"
+                "4. /飞花令帮助 基础查询  (查诗词/查诗句指令)\n"
+                "5. /飞花令帮助 游戏管理  (建局/读档/跳过等指令)\n"
                 "===================="
             )
             yield event.plain_result(msg)
@@ -428,7 +453,17 @@ class PoetryPlugin(Star):
                 "3. 极简落子：如果有多个合法交叉点，系统会发送一张【带✨金黄色高亮起点的图片】。你只需要看着图，直接发送你想去的格子里的【数字】（如：1 或 2）即可自动落子！\n"
                 "4. 结算：最终占领格子最多的玩家获胜！"
             )
-        elif topic in ["3", "基础查询", "查询"]:
+        elif topic in ["3", "蛇形规则", "蛇形"]:
+            msg = (
+                "🐍 【蛇形飞花令】规则说明\n"
+                "--------------------\n"
+                "1. 经典贪吃蛇玩法 + 诗词！控制蛇吃诗句中掉落的高亮字。\n"
+                "2. 吃到高亮字后，长出对应长度的身体。\n"
+                "3. 撞墙或撞到自己则游戏结束。\n"
+                "4. 每轮随机生成一句诗在棋盘外圈，找到其中的目标字吃掉即可得分！\n"
+                "5. 支持 WASD 和方向键操控。"
+            )
+        elif topic in ["4", "基础查询", "查询"]:
             msg = (
                 "📚 【基础查询】指令说明\n"
                 "--------------------\n"
@@ -437,13 +472,14 @@ class PoetryPlugin(Star):
                 "• /查询诗句 [诗句内容]\n"
                 "  例如：「/查询诗句 借问新安江」，双核搜索，优先找出完全一致的原句出处，同时展示包含该片段的其他诗词。"
             )
-        elif topic in ["4", "游戏管理", "管理", "指令"]:
+        elif topic in ["5", "游戏管理", "管理", "指令"]:
             msg = (
                 "⚙️ 【游戏管理】全指令说明\n"
                 "--------------------\n"
                 "【建局指令】\n"
                 "• /衔字飞花令\n"
-                "• /纵横飞花令 [宽] [高] (如: /纵横飞花令 20 20)\n\n"
+                "• /纵横飞花令 [宽] [高] (如: /纵横飞花令 20 20)\n"
+                "• /蛇形飞花令 [宽] [高] (如: /蛇形飞花令 40 40)\n\n"
                 "【局内操作】 (无需加斜杠 /)\n"
                 "• 加入 / 退出：参与或脱离当前游戏队列。\n"
                 "• 跳过：若当前玩家迟迟不发，可输入跳过，系统判定超时后将自动强制流转。\n\n"
@@ -489,7 +525,7 @@ class PoetryPlugin(Star):
     async def handle_recv_msg(self, event: AstrMessageEvent):
         msg_raw = event.message_str.strip()
         if msg_raw.startswith(("(", "（")) and msg_raw.endswith((")", "）")): return
-        if not msg_raw or msg_raw.startswith(("/", "查询", "生成战报", "恢复", "结束", "纵横", "衔字", "删除", "安装")): return
+        if not msg_raw or msg_raw.startswith(("/", "查询", "生成战报", "恢复", "结束", "纵横", "衔字", "蛇形", "删除", "安装")): return
 
         session_id = str(event.get_group_id() or event.get_session_id())
         if session_id not in self.active_games: return
