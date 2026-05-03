@@ -14,18 +14,21 @@ from .game.flowing_petals import FlowingPetalsEngine
 from .game.crossword_poetry import PoetryCrosswordEngine
 
 GITEE_BASE = "https://gitee.com/alin1031/poetry-data/releases/download/v1.0.0/poetry_data.zip"
+GITEE_PROBE = GITEE_BASE + ".part01"  # 探测分片而非基文件（基文件不存在）
 GITEE_PARTS = 4
 
 GITHUB_ZIP = "https://github.com/sfw2099/astrbot_plugin_poetry_games/releases/download/data-v3.0.0/poetry_data.zip"
 
-PROXY_URLS = [
-    GITEE_BASE,       # Gitee 分片（国内优先）
-    GITHUB_ZIP,       # GitHub 直链
-    "https://gh.ddlc.top/" + GITHUB_ZIP,
-    "https://ghproxy.net/" + GITHUB_ZIP,
+PROXY_SOURCES = [
+    # (probe_url, download_url, label)
+    (GITEE_PROBE, "GITEE",   "Gitee 分片"),
+    (GITHUB_ZIP,  GITHUB_ZIP,  "GitHub 直链"),
+    ("https://gh.llkk.cc/" + GITHUB_ZIP, "https://gh.llkk.cc/" + GITHUB_ZIP, "gh.llkk.cc"),
+    ("https://gh.ddlc.top/" + GITHUB_ZIP, "https://gh.ddlc.top/" + GITHUB_ZIP, "gh.ddlc.top"),
+    ("https://ghproxy.net/" + GITHUB_ZIP, "https://ghproxy.net/" + GITHUB_ZIP, "ghproxy.net"),
 ]
 
-PROBE_TIMEOUT = 10  # 每源探测超时秒数
+PROBE_TIMEOUT = 12
 
 
 @register("astrbot_plugin_poetry_games", "ALin", "诗词游戏引擎", "3.5.0")
@@ -72,46 +75,47 @@ class PoetryPlugin(Star):
         yield event.plain_result("🔍 正在探测下载源...")
 
         candidates = []
-        async with aiohttp.ClientSession() as session:
-            for i, url in enumerate(PROXY_URLS):
-                label = f"源{i+1}"
+        connector = aiohttp.TCPConnector(ssl=False)
+        async with aiohttp.ClientSession(connector=connector) as session:
+            for probe_url, dl_url, label in PROXY_SOURCES:
                 t0 = time.monotonic()
                 try:
-                    async with session.head(url, timeout=aiohttp.ClientTimeout(total=PROBE_TIMEOUT),
+                    async with session.head(probe_url, timeout=aiohttp.ClientTimeout(total=PROBE_TIMEOUT),
                                              allow_redirects=True) as resp:
                         if resp.status == 200:
                             elapsed = time.monotonic() - t0
                             clen = int(resp.headers.get('Content-Length', 0))
-                            candidates.append((url, elapsed, clen, label))
+                            candidates.append((dl_url, elapsed, clen, label))
                 except Exception:
                     pass
 
         if not candidates:
             yield event.plain_result(
                 "❌ 所有下载源均不可达。\n\n"
-                "📥 请手动下载并上传：\n"
-                f"{GITHUB_ZIP}\n"
+                "📥 请手动下载：\n"
+                f"  Gitee: https://gitee.com/alin1031/poetry-data/releases\n"
+                f"  GitHub: {GITHUB_ZIP}\n"
                 "解压后放入: " + str(self.plugin_data_dir)
             )
             return
 
         candidates.sort(key=lambda x: x[1])
         lines = ["📡 下载源测速结果："]
-        for i, (url, elapsed, clen, label) in enumerate(candidates):
+        for i, (dl_url, elapsed, clen, label) in enumerate(candidates):
             mb = clen / (1024 * 1024) if clen > 0 else 0
             sz = f"{mb:.0f}MB" if mb > 0 else "?"
             lines.append(f"  {i+1}. {elapsed:.1f}s  {sz}  {label}")
         yield event.plain_result("\n".join(lines))
 
-        best_url, best_elapsed, _, best_label = candidates[0]
+        best_dl_url, best_elapsed, _, best_label = candidates[0]
         yield event.plain_result(f"⬇️ 选用 {best_label} ({best_elapsed:.1f}s)，开始下载...")
 
         # ---- download ----
         try:
-            if best_url == GITEE_BASE:
+            if best_dl_url == "GITEE":
                 await self._download_gitee(event)
             else:
-                await self._download_zip(event, best_url)
+                await self._download_zip(event, best_dl_url)
 
             self.db = PoetryDB(str(self.db_file))
             db_size_mb = os.path.getsize(str(self.db_file)) / (1024 * 1024)
@@ -125,7 +129,8 @@ class PoetryPlugin(Star):
         import zipfile
         import io
         all_data = bytearray()
-        async with aiohttp.ClientSession() as session:
+        connector = aiohttp.TCPConnector(ssl=False)
+        async with aiohttp.ClientSession(connector=connector) as session:
             for i in range(1, GITEE_PARTS + 1):
                 part_url = f"{GITEE_BASE}.part{i:02d}"
                 yield event.plain_result(f"  [{i}/{GITEE_PARTS}] 下载中...")
@@ -147,7 +152,8 @@ class PoetryPlugin(Star):
         """下载单个 zip 文件，带进度"""
         import zipfile
         import io
-        async with aiohttp.ClientSession() as session:
+        connector = aiohttp.TCPConnector(ssl=False)
+        async with aiohttp.ClientSession(connector=connector) as session:
             async with session.get(url, timeout=aiohttp.ClientTimeout(total=1800)) as resp:
                 if resp.status != 200:
                     raise Exception(f"HTTP {resp.status}")
