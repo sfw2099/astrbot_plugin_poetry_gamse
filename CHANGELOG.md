@@ -1,52 +1,49 @@
-# Changelog
+# 更新日志
 
-## v3.2.1 (2026-05-03)
+## v3.2.2 (2026-05-03)
 
-### Added
-- AI Bot player (`/bot加入` / `/bot退出`) for 衔字飞花令 and 纵横飞花令
-- Bot auto-search database for best matching poems on each turn
-- Bot think delay (2-4s) to simulate human player
-- Snake poetry game mode (`/蛇形飞花令`)
-- `/安装数据库` command with multi-source probe and progress feedback
-- Gitee 4-part download as primary source for domestic users
-- GitHub mirror fallback (gh.llkk.cc, ghproxy.net, gh.ddlc.top)
-- Stream download to disk (prevents memory explosion on small servers)
-- Multi-save management (`/恢复游戏 [序号]`, `/删除存档 [序号]`)
-- Timeout monitor with auto-skip for inactive players
-- Exact/fuzzy dual-mode sentence search in `/查询诗句`
-- Author-filtered title search in `/查询诗词 [标题] [作者]`
-- Help menu system (`/飞花令帮助`)
-- In-game operations: `退出`, `跳过`, `催更`
-- FTS5 full-text search index for faster queries
-- Multi-version poem support (version field in database)
-- Configurable timeout settings per game mode
+### 新增
+- AI Bot 玩家（/bot加入 / /bot退出），支持衔字飞花令和纵横飞花令
+- Bot 每回合自动搜索数据库，匹配最优诗句接龙
+- Bot 思考延迟（2-4秒），模拟真人玩家
+- 蛇形飞花令游戏模式（/蛇形飞花令）
+- /安装数据库 指令，自动探测网络最优源并显示下载进度
+- Gitee 4分片下载，国内服务器优先
+- GitHub 镜像自动回退（gh.llkk.cc、ghproxy.net、gh.ddlc.top）
+- 流式下载写入磁盘，避免小内存服务器 OOM
+- 多存档管理系统（/恢复游戏 [序号]、/删除存档 [序号]）
+- 超时监控，闲置玩家自动跳过
+- 精确/模糊双模式诗句搜索（/查询诗句）
+- 支持作者联合检索（/查询诗词 望庐山瀑布 李白）
+- 帮助菜单系统（/飞花令帮助）
+- 局内操作指令：退出、跳过、催更
+- FTS5 全文搜索索引，大幅提升查询速度
+- 多版本诗词支持（同一首诗词的不同版本标记 version 字段）
+- 三种游戏模式独立可配置超时时间
 
-### Changed
-- Database rebuilt from merged poetry-dataset (1,197,883 poems)
-- Database installation moved from auto-download to manual command
-- Download sources ranked by probe speed before selection
-- `.gitattributes` added to prevent encoding corruption on Windows Git
-- metadata.yaml uses LF line endings to avoid garbled characters
+### 变更
+- 数据库从三大数据源重新构建（chinese-poetry + Werneror/Poetry + poetic-mao），共计 119 万首
+- 数据库安装由自动下载改为手动指令 /安装数据库
+- 下载源按 HEAD 探测速度排序，选最快的
+- 繁体中文自动转简体（OpenCC）
+- poetry_data.db 改为 poetry_data.zip 以缩小下载体积
+- 新增 .gitattributes 防止 Windows Git 编码损坏
+- metadata.yaml 使用 LF 换行，避免乱码
 
-### Fixed
-- Cross-word bot GRID_SIZE attribute error
-- Snake bot infinite loop causing game freeze
-- In-memory bytearray OOM on small servers
-- Chinese quotation marks conflicting with f-string delimiters
-- metadata.yaml encoding corruption on Git CRLF conversion
-- Overlapping proposals to same target in autumn_blaze plugin
-
-### Changed
-- Database sources: chinese-poetry + Werneror/Poetry + poetic-mao
-- Traditional Chinese auto-converted to Simplified (OpenCC)
-- poetry_data.db replaced with poetry_data.zip (smaller download)
+### 修复
+- 纵横飞花令 Bot GRID_SIZE 属性错误
+- 蛇形飞花令 Bot 无限循环导致游戏卡死
+- 内存缓冲导致小服务器 OOM
+- 中文引号与 f-string 语法冲突
+- metadata.yaml 因 Git CRLF 转换导致乱码
+- 秋焰插件重复求婚覆盖问题
 
 ---
 
 ## v2.1.5 (2026-03-02)
 
-### Added
-- Initial release
-- 衔字飞花令 and 纵横飞花令 game modes
-- Basic poem search (`/查询诗句`, `/查询诗词`)
-- GitHub Release database download
+### 新增
+- 插件首次发布
+- 衔字飞花令、纵横飞花令
+- 基础诗词查询（/查询诗句、/查询诗词）
+- GitHub Release 数据库下载
